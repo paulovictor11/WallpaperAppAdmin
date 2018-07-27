@@ -3,7 +3,7 @@
 <div class="row">
     <div class="col-lg-5">
         <h4>Add New</h4>
-        <form>
+        <form id="category-form">
             <div class="form-group">
                 <label for="category-name">Enter Name</label>
                 <input type="text" class="form-control" id="category-name">
@@ -46,6 +46,18 @@
     </div>
     <div class="col-lg-7">
         <h4>Saved Categories</h4>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Thumbnail</th>
+                </tr>
+            </thead>
+            <tbody id="categories">
+
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -101,5 +113,109 @@
         }
 
         // upload the image and save category
+
+        var database = firebase.database().ref("categories/"+catname);
+
+        database.once("value").then(function(snapshot){
+            if (snapshot.exists()) {
+                $("#result").attr("class", "alert alert-danger");
+                $("#result").html("Category Already Exist");
+                resetForm();
+            } else {
+                // 1. upload the selected thumbnail to firebase storage
+
+                var name = thumbnail["name"];
+                var ext = name.substring(name.lastIndexOf("."), name.length);
+
+                var thumbname = new Date().getTime();
+
+                var storageRef = firebase.storage().ref(catname + "/" + thumbname + ext);
+                var ulploadTask = storageRef.put(thumbnail);
+                ulploadTask.on("state_changed",
+                    function progress(snapshot){
+                        var percentage = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                        $("#upload-progress").html(Math.round(percentage) + "%");
+                        $("#upload-progress").attr("style", "width:" + percentage + "%");
+                    },
+                    function error(err){
+
+                    },
+                    function complete(){
+                        // var thumbnailUrl = ulploadTask.snapshot.downloadURL;
+                        
+                        // var cat = {
+                        //     "thumbnail": thumbnailUrl,
+                        //     "desc": desc
+                        // };
+
+                        // database.set(cat, function(err){
+                        //     if (err) {
+                        //         $("#result").attr("class", "alert alert-danger");
+                        //         $("#result").html(err.message);
+                        //     } else {
+                        //         $("#result").attr("class", "alert alert-success");
+                        //         $("#result").html("Category added");
+                        //     }
+                        // });
+
+                        storageRef.getDownloadURL().then(function(thumbnailUrl){
+                            console.log(thumbnailUrl);
+
+                            var cat = {
+                                "thumbnail": thumbnailUrl,
+                                "desc": desc
+                            };
+
+                            database.set(cat, function(err){
+                                if (err) {
+                                    $("#result").attr("class", "alert alert-danger");
+                                    $("#result").html(err.message);
+                                } else {
+                                    $("#result").attr("class", "alert alert-success");
+                                    $("#result").html("Category Added");
+                                }
+
+                                resetForm();
+                            });
+                        })
+                    }
+                );
+            }
+        });
+    });
+
+    function resetForm(){
+        $("#category-form")[0].reset();
+        $("#selected-thumbnail").fadeOut();
+        $("#upload-progress").html("Completed");
+    }
+
+    var dbCategories = firebase.database().ref("categories");
+    dbCategories.on("value", function(categories){
+        if (categories.exists()) {
+            var categorieshtml = "";
+            categories.forEach(function(category){
+                categorieshtml += "<tr>";
+                    
+                    // for category name
+                    categorieshtml += "<td>";
+                        categorieshtml += category.key;
+                    categorieshtml += "</td>";
+
+                    // for category description
+                    categorieshtml += "<td>";
+                        categorieshtml += category.val().desc;
+                    categorieshtml += "</td>";
+
+                    // for category thumbnail
+                    categorieshtml += "<td> <img width='250' height='150' src='";
+                        categorieshtml += category.val().thumbnail;
+                    categorieshtml += "'> </td>";
+
+                categorieshtml += "</tr>";
+            });
+
+            $("#categories").html(categorieshtml);
+        }
     });
 </script>
